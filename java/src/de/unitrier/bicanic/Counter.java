@@ -8,6 +8,9 @@ import java.nio.file.Paths;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
+// Regular expression ".*\.txt$" matches any txt source files
+// args[0] = "path" args[1] = "regex"
+
 public class Counter {
 
 	public static void main(String[] args) throws IOException {
@@ -24,8 +27,9 @@ public class Counter {
 	public static long countLinesInAllFiles(String folderPath, String regex) throws IOException {
 		Pattern pattern = Pattern.compile(regex);
 		try (Stream<Path> paths = Files.walk(Paths.get(folderPath))) {
-			return paths.filter(Files::isRegularFile).filter(path -> pattern.matcher(path.toString()).matches())
+			return paths.parallel().filter(Files::isRegularFile).filter(path -> pattern.matcher(path.toString()).matches())
 					.mapToLong(path -> {
+						System.out.println("Thread " + Thread.currentThread().getName() + " processing file: " + path);
 						try {
 							return countLines(path.toString());
 						} catch (IOException e) {
@@ -36,3 +40,4 @@ public class Counter {
 	}
 
 }
+
