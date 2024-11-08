@@ -1,20 +1,23 @@
 package de.unitrier.bicanic;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.concurrent.ForkJoinPool;
+import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-// Regular expression ".*\.txt$" matches any txt source files
 // args[0] = "path" args[1] = "regex" args[2] = "number of threads"
 
 public class Counter {
 
-    public static void main(String[] args) throws IOException {
+    public static void main(String[] args) throws IOException, InterruptedException {
         assert (args.length == 3);
 
         String folderPath = args[0];
@@ -24,9 +27,13 @@ public class Counter {
         // Measure start time
         long startTime = System.currentTimeMillis();
 
-        // Use a custom ForkJoinPool with the specified number of threads
-        ForkJoinPool customThreadPool = new ForkJoinPool(numThreads);
-        long totalLines = customThreadPool.submit(() -> countLinesInAllFiles(folderPath, regex)).join();
+        // Create a custom thread pool
+        ExecutorService executor = Executors.newFixedThreadPool(numThreads);
+        long totalLines = countLinesInAllFiles(folderPath, regex, executor);
+
+        // Shut down the executor and wait for all tasks to complete
+        executor.shutdown();
+        executor.awaitTermination(1, TimeUnit.HOURS);
 
         // Measure end time
         long endTime = System.currentTimeMillis();
@@ -34,8 +41,6 @@ public class Counter {
         // Print results
         System.out.println("Total lines: " + totalLines);
         System.out.println("Execution time: " + (endTime - startTime) + " ms");
-
-        customThreadPool.shutdown(); // Shutdown the pool
     }
 
     public static long countLines(String fileName) throws IOException {
@@ -44,24 +49,31 @@ public class Counter {
         }
     }
 
-    public static long countLinesInAllFiles(String folderPath, String regex) throws IOException {
+    public static long countLinesInAllFiles(String folderPath, String regex, ExecutorService executor) throws IOException {
         Pattern pattern = Pattern.compile(regex);
 
-        // Use parallel stream within the custom ForkJoinPool
+        // Collect all matching file paths first to start parallel processing
         try (Stream<Path> paths = Files.walk(Paths.get(folderPath))) {
-            return paths.parallel()
-						.filter(Files::isRegularFile)
-                        .filter(path -> pattern.matcher(path.toString()).matches())
-                        .mapToLong(path -> {
-                            // Print the current thread name and the file path
-                            System.out.println("Thread " + Thread.currentThread().getName() + " processing file: " + path);
-                            try {
-                                return countLines(path.toString());
-                            } catch (IOException e) {
-                                throw new UncheckedIOException(e);
-                            }
-                        })
-                        .sum();
+            List<Path> matchingPaths = paths.filter(Files::isRegularFile)
+                                            .filter(path -> pattern.matcher(path.toString()).matches())
+                                            .collect(Collectors.toList());
+
+            // Use CompletableFutures to process each file asynchronously
+            List<CompletableFuture<Long>> futures = matchingPaths.stream()
+                    .map(path -> CompletableFuture.supplyAsync(() -> {
+                        System.out.println("Thread " + Thread.currentThread().getName() + " processing file: " + path);
+                        try {
+                            return countLines(path.toString());
+                        } catch (IOException e) {
+                            throw new RuntimeException(e);
+                        }
+                    }, executor))
+                    .collect(Collectors.toList());
+
+            // Sum up the results from each future
+            return futures.stream()
+                          .mapToLong(CompletableFuture::join)
+                          .sum();
         }
     }
 }
