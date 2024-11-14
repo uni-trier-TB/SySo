@@ -1,7 +1,6 @@
 package de.unitrier.bicanic;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -10,16 +9,10 @@ import java.util.concurrent.*;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
-import java.nio.charset.Charset;
-import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
+
 import java.util.List;
 
 public class LineCounterParallel {
-
-    // static List<Future<Integer>> futures = new ArrayList<>();
-    // private static int fileCounter = 0;
-    //private static long lineCounter = 0;
 
     public static String folderPath;
     public static String regrex;
@@ -79,8 +72,6 @@ public class LineCounterParallel {
                         futures.add(executor.submit(task));
 
                     });
-
-
         }
     }
 
