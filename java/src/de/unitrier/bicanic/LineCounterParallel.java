@@ -24,7 +24,7 @@ public class LineCounterParallel {
     public static String folderPath;
     public static String regrex;
 
-    private static final int maxConcurrentThreads = 8; // Maximale Anzahl an parallelen Threads
+    private static final int maxConcurrentThreads = 128; // Maximale Anzahl an parallelen Threads
 
     public static void main(String[] args) throws IOException, ExecutionException, InterruptedException {
 
@@ -34,7 +34,7 @@ public class LineCounterParallel {
         regrex = args[1];
 
         // Wir lassen das Program jeweils 4 mal für jeweils 1 bis maxThreads laufen.
-        for(int i = 1; i<= maxConcurrentThreads; i++){
+        for(int i = 8; i<= maxConcurrentThreads; i=i+4){
             for(int j = 1; j<=4; j++){
                 countController(i, j);
             }
